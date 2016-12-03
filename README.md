@@ -30,6 +30,7 @@ The __(l)user hunter__ tool is a small program written in C/C++ that uses WinAPI
 * Retrieves information about each global group in the security database, SAM database or Active Directory.
 * Retrieves a list of the members in a particular global group in the security database, SAM database or Active Directory.
 * Retrieves information about a particular user account on a server or DC.
+* Enumerate the domain controllers in the local domain.
 
 
 Additionally, for hosts enumeration there's a minimum and maximum delay value in seconds you can add to avoid detection/noise.
