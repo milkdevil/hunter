@@ -20,6 +20,7 @@
 #include <lm.h>
 #include <time.h>
 #include <sddl.h>
+#include <DsGetDC.h>
 
 #pragma comment(lib, "netapi32.lib")
 #pragma comment(lib, "ws2_32.lib")
@@ -38,7 +39,8 @@ VOID displayHelp()
 	wprintf(L"  -g [computer]\t\t\tRetrieve each global group on a server or DC\n");
 	wprintf(L"  -u <username> [computer]\tRetrieve user information on a server or DC\n");
 	wprintf(L"  -b <username> [computer]\tRetrieve a list of global groups a user belongs on a server or DC\n");
-	wprintf(L"  -m <group> [computer]\t\tRetrieve list of members in a particular global group on a server or DC\n\n");
+	wprintf(L"  -m <group> [computer]\t\tRetrieve list of members in a particular global group on a server or DC\n"); 
+	wprintf(L"  -e\t\t\t\tEnumerate Domain Controllers in the Local Domain\n\n");
 	wprintf(L"  -min <sec> -max <sec>\t\tMin and Max delay between queries in seconds, applies to -f and -d only\n");
 
 	exit(0);
@@ -65,12 +67,62 @@ int randomDelay(int min, int max)
 
 	srand((unsigned)time(NULL));
 	stime = (rand() % (max - min)) + min;
-
+	
 	printColoured(L"\n Sleeping for ", (FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE));
 	wprintf(L"%d", stime);
 	printColoured(L" seconds before next request\n", (FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE));
 
 	return stime;
+}
+
+VOID getDomainControllers()
+{
+	DWORD dwRet;
+	PDOMAIN_CONTROLLER_INFO pdcInfo;
+
+	dwRet = DsGetDcName(NULL, NULL, NULL, NULL, 0, &pdcInfo);
+	
+	if (ERROR_SUCCESS == dwRet)
+	{
+		HANDLE hGetDc;
+
+		dwRet = DsGetDcOpen(pdcInfo->DomainName, DS_NOTIFY_AFTER_SITE_RECORDS, NULL, NULL, NULL, 0, &hGetDc);
+
+		if (ERROR_SUCCESS == dwRet)
+		{
+			LPTSTR pszDnsHostName;
+
+			while (TRUE)
+			{
+				ULONG ulSocketCount;
+				LPSOCKET_ADDRESS rgSocketAddresses;
+
+				dwRet = DsGetDcNext(hGetDc, &ulSocketCount, &rgSocketAddresses, &pszDnsHostName);
+
+				if (ERROR_SUCCESS == dwRet)
+				{
+					wprintf(L" -- %s\n", pszDnsHostName);
+
+					NetApiBufferFree(pszDnsHostName);
+
+					LocalFree(rgSocketAddresses);
+				}
+				else if (ERROR_NO_MORE_ITEMS == dwRet)
+					break;
+				else if (ERROR_FILEMARK_DETECTED == dwRet)
+				{
+					wprintf(L" End of site-specific domain controllers\n");
+					continue;
+				}
+				else
+					break;
+			}
+
+			DsGetDcClose(hGetDc);
+		}
+
+		NetApiBufferFree(pdcInfo);
+	}
 }
 
 VOID userInfo(wchar_t *host, wchar_t *user)
@@ -106,47 +158,47 @@ VOID userInfo(wchar_t *host, wchar_t *user)
 	{
 		if (pBuf != NULL)
 		{
-			pBuf4 = (LPUSER_INFO_4)pBuf;
-			wprintf(L" User account name: %s\n", pBuf4->usri4_name);
-			wprintf(L" Password: %s\n", pBuf4->usri4_password);
-			wprintf(L" Password age (seconds): %d\n", pBuf4->usri4_password_age);
-			wprintf(L" Privilege level: %d\n", pBuf4->usri4_priv);
-			wprintf(L" Home directory: %s\n", pBuf4->usri4_home_dir);
-			wprintf(L" Comment: %s\n", pBuf4->usri4_comment);
-			wprintf(L" Flags (in hex): %x\n", pBuf4->usri4_flags);
-			wprintf(L" Script path: %s\n", pBuf4->usri4_script_path);
-			wprintf(L" Auth flags (in hex): %x\n", pBuf4->usri4_auth_flags);
-			wprintf(L" Full name: %s\n", pBuf4->usri4_full_name);
-			wprintf(L" User comment: %s\n", pBuf4->usri4_usr_comment);
-			wprintf(L" Parameters: %s\n", pBuf4->usri4_parms);
-			wprintf(L" Workstations: %s\n", pBuf4->usri4_workstations);
-			wprintf(L" Last logon (seconds since January 1, 1970 GMT): %d\n", pBuf4->usri4_last_logon);
-			wprintf(L" Last logoff (seconds since January 1, 1970 GMT): %d\n", pBuf4->usri4_last_logoff);
-			wprintf(L" Account expires (seconds since January 1, 1970 GMT): %d\n", pBuf4->usri4_acct_expires);
-			wprintf(L" Max storage: %d\n", pBuf4->usri4_max_storage);
-			wprintf(L" Units per week: %d\n", pBuf4->usri4_units_per_week);
-			wprintf(L" Logon hours:");
-			for (i = 0; i < 21; i++)
-			{
-				printf(" %x", (BYTE)pBuf4->usri4_logon_hours[i]);
-			}
-			wprintf(L"\n");
-			wprintf(L" Bad password count: %d\n", pBuf4->usri4_bad_pw_count);
-			wprintf(L" Number of logons: %d\n", pBuf4->usri4_num_logons);
-			wprintf(L" Logon server: %s\n", pBuf4->usri4_logon_server);
-			wprintf(L" Country code: %d\n", pBuf4->usri4_country_code);
-			wprintf(L" Code page: %d\n", pBuf4->usri4_code_page);
-			if (ConvertSidToStringSid(pBuf4->usri4_user_sid, &sStringSid))
-			{
-				wprintf(L" User SID: %s\n", sStringSid);
-				LocalFree(sStringSid);
-			}
-			else
-				wprintf(L" ConvertSidToSTringSid failed with error %d\n", GetLastError());
-			wprintf(L" Primary group ID: %d\n", pBuf4->usri4_primary_group_id);
-			wprintf(L" Profile: %s\n", pBuf4->usri4_profile);
-			wprintf(L" Home directory drive letter: %s\n", pBuf4->usri4_home_dir_drive);
-			wprintf(L" Password expired information: %d\n", pBuf4->usri4_password_expired);
+				pBuf4 = (LPUSER_INFO_4)pBuf;
+				wprintf(L" User account name: %s\n", pBuf4->usri4_name);
+				wprintf(L" Password: %s\n", pBuf4->usri4_password);
+				wprintf(L" Password age (seconds): %d\n", pBuf4->usri4_password_age);
+				wprintf(L" Privilege level: %d\n", pBuf4->usri4_priv);
+				wprintf(L" Home directory: %s\n", pBuf4->usri4_home_dir);
+				wprintf(L" Comment: %s\n", pBuf4->usri4_comment);
+				wprintf(L" Flags (in hex): %x\n", pBuf4->usri4_flags);
+				wprintf(L" Script path: %s\n", pBuf4->usri4_script_path);
+				wprintf(L" Auth flags (in hex): %x\n",	pBuf4->usri4_auth_flags);
+				wprintf(L" Full name: %s\n", pBuf4->usri4_full_name);
+				wprintf(L" User comment: %s\n", pBuf4->usri4_usr_comment);
+				wprintf(L" Parameters: %s\n", pBuf4->usri4_parms);
+				wprintf(L" Workstations: %s\n", pBuf4->usri4_workstations);
+				wprintf(L" Last logon (seconds since January 1, 1970 GMT): %d\n", pBuf4->usri4_last_logon);
+				wprintf(L" Last logoff (seconds since January 1, 1970 GMT): %d\n", pBuf4->usri4_last_logoff);
+				wprintf(L" Account expires (seconds since January 1, 1970 GMT): %d\n",	pBuf4->usri4_acct_expires);
+				wprintf(L" Max storage: %d\n", pBuf4->usri4_max_storage);
+				wprintf(L" Units per week: %d\n", pBuf4->usri4_units_per_week);
+				wprintf(L" Logon hours:");
+				for (i = 0; i < 21; i++)
+				{
+					printf(" %x", (BYTE)pBuf4->usri4_logon_hours[i]);
+				}
+				wprintf(L"\n");
+				wprintf(L" Bad password count: %d\n", pBuf4->usri4_bad_pw_count);
+				wprintf(L" Number of logons: %d\n", pBuf4->usri4_num_logons);
+				wprintf(L" Logon server: %s\n", pBuf4->usri4_logon_server);
+				wprintf(L" Country code: %d\n", pBuf4->usri4_country_code);
+				wprintf(L" Code page: %d\n", pBuf4->usri4_code_page);
+				if (ConvertSidToStringSid(pBuf4->usri4_user_sid, &sStringSid))
+				{
+					wprintf(L" User SID: %s\n", sStringSid);
+					LocalFree(sStringSid);
+				}
+				else
+					wprintf(L" ConvertSidToSTringSid failed with error %d\n", GetLastError());
+				wprintf(L" Primary group ID: %d\n", pBuf4->usri4_primary_group_id);
+				wprintf(L" Profile: %s\n", pBuf4->usri4_profile);
+				wprintf(L" Home directory drive letter: %s\n", pBuf4->usri4_home_dir_drive);
+				wprintf(L" Password expired information: %d\n", pBuf4->usri4_password_expired);
 		}
 	}
 
@@ -241,7 +293,7 @@ VOID getUsers(wchar_t *host, BOOL all)
 	LPUSER_INFO_0 pTmpBuf;
 	DWORD i = 0;
 
-	if (host != NULL)
+	if(host != NULL)
 	{
 		pszServerName = (LPTSTR)host;
 	}
@@ -284,7 +336,7 @@ VOID getUsers(wchar_t *host, BOOL all)
 					else
 						wprintf(L" -- %s\n", pTmpBuf->usri0_name);
 
-
+					
 
 					pTmpBuf++;
 				}
@@ -298,7 +350,7 @@ VOID getUsers(wchar_t *host, BOOL all)
 			NetApiBufferFree(pBuf);
 			pBuf = NULL;
 		}
-
+	
 	} while (nStatus == ERROR_MORE_DATA);
 
 	if (pBuf != NULL)
@@ -311,7 +363,7 @@ VOID getUsers(wchar_t *host, BOOL all)
 VOID isLocaladmin(wchar_t *host)
 {
 	SC_HANDLE schSCManager;
-	wchar_t server[255];
+	wchar_t server[255]; 
 
 	_snwprintf(server, 255, L"\\\\%s", host);
 
@@ -658,7 +710,7 @@ VOID sessionsEnum(wchar_t *host)
 
 	} while (nStatus == ERROR_MORE_DATA);
 
-	if (pBuf != NULL)
+	if (pBuf != NULL) 
 	{
 		NetApiBufferFree(pBuf);
 		pBuf = NULL;
@@ -745,7 +797,7 @@ VOID serverInfo(wchar_t *host)
 		if ((pTmpBuf = pBuf) != NULL)
 		{
 			assert(pTmpBuf != NULL);
-
+			
 			if (pTmpBuf == NULL)
 			{
 				fprintf(stderr, "[-] Access violation!\n");
@@ -858,7 +910,7 @@ int wmain(int argc, wchar_t * argv[])
 	if (argc == 1)
 		displayHelp();
 
-	if (_wcsicmp(argv[1], L"-b") == 0)
+	if (_wcsicmp(argv[1], L"-b") == 0) 
 	{
 		if (argc == 3)
 		{
@@ -1077,8 +1129,18 @@ int wmain(int argc, wchar_t * argv[])
 
 		return 0;
 	}
-	else
+	else if (!_wcsicmp(argv[1], L"-e"))
+	{
+		if (argc == 2)
+		{
+			printColoured(L" [+] Domain Controllers in the Local Domain\n", (FOREGROUND_INTENSITY | FOREGROUND_GREEN));
+			getDomainControllers();
+		}
+		else
+			wprintf(L" [-] Error: Invalid options for -e. Exiting.\n");
+	}
+	else 
 		displayHelp();
-
+	
 	return 0;
 }

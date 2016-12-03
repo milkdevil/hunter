@@ -64,6 +64,8 @@ See below some usage examples.
 
 ![Alt text](screenshots/users_detailed.png?raw=true "Users information")
 
+![Alt text](screenshots/dcs.png?raw=true "Domain Controllers")
+
 ### TODO:
 
 * Improve Error handling
