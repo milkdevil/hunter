@@ -3,9 +3,9 @@
 
 ### Introduction:
 
-During Red Team engagments it is common to track/hunt specific users. Assuming we already have access to a desktop as a normal user (no matter how, always "assume compromise") __in a Windows Domain__ and we want to spread laterally. We want to know where the user is logged on, if he is a local administrator in any box, to which groups he belongs, if he has access to file shares, and so on. Enumerating hosts, users, and groups will also help to get a better understanding of the Domain layout.
+During Red Team engagements it is common to track/hunt specific users. Assuming we already have access to a desktop as a normal user (no matter how, always "assume compromise") __in a Windows Domain__ and we want to spread laterally. We want to know where the user is logged on, if he is a local administrator in any box, to which groups he belongs, if he has access to file shares, and so on. Enumerating hosts, users, and groups will also help to get a better understanding of the Domain layout.
 
-You might be thinking, "use Powerview". Lately, one of the most common problems I encounter during Red Team exercises is the fact that __PowerShell is heavily monitored__. If you use it, you'll get caught, sooner or later. By now everyone is well aware how powerfull PowerShell is, including Blue Teams and Security Vendors.
+You might be thinking, "use Powerview". Lately, one of the most common problems I encounter during Red Team exercises is the fact that __PowerShell is heavily monitored__. If you use it, you'll get caught, sooner or later. By now everyone is well aware how powerful PowerShell is, including Blue Teams and Security Vendors.
 
 There are multiple ways to work around this. To avoid using multiple old school tools ([psloggedon.exe](https://technet.microsoft.com/en-us/sysinternals/psloggedon.aspx), [netsess.exe](http://www.joeware.net/freetools/), [nltest](https://technet.microsoft.com/en-us/library/cc731935%28v=ws.11%29.aspx), [netview](https://github.com/mubix/netview), among others) and to reduce the amount of tools uploaded to compromised systems I created a simple tool that __doesn't require Administrative privileges__ to run and collect the information listed below, and __relies only on the Windows API__.
 
